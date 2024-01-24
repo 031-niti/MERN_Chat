@@ -117,7 +117,7 @@ const Chat = () => {
 
   const sendFile = (e) => {
     const reader = new FileReader
-    reader.readAsArrayBuffer(e.target.files[0])
+    reader.readAsDataURL(e.target.files[0]);
     reader.onload = () => {
       sendMessage(null, {name:e.target.files[0].name, data:reader.result})
     }
