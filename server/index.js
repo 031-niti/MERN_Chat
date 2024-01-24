@@ -123,7 +123,7 @@ const getUserDataFromRequest = (req) => {
         }
     })
 }
-app.get("/message/:userd", async (req, res) => {
+app.get("/message/:userId", async (req, res) => {
     const { userId } = req.params;
     const userData = await getUserDataFromRequest(req);
     const ourUserId = userData.userId;
