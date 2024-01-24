@@ -112,7 +112,7 @@ app.get("/people", async (req, res) => {
 
 const getUserDataFromRequest = (req) => {
     return new Promise((resolve, reject) => {
-        const token = req.cookie?.token;
+        const token = req.cookies?.token;
         if (token) {
             jwt.verify(token, secret, {}, (err, userData) => {
                 if (err) throw err;
@@ -131,8 +131,8 @@ app.get("/message/:userId", async (req, res) => {
         sender: { $in: [userId, ourUserId] },
         recipient: { $in: [userId, ourUserId] },
     }).sort({ createAt: 1 });
-    res.json(message)
-})
+    res.json(message);
+});
 
 //Run server
 const PORT = process.env.PORT;
@@ -197,8 +197,8 @@ wss.on('connection', (connection, req) => {
             const ext = parts[parts.length - 1];
             filename = Date.now() + "." + ext;
             const path = __dirname + "/uploads/" + filename;
-            const bufferData = new Buffer(file.data.split(".")[1], "base64")
-            fs.writeFile(path, bufferData, () => {
+            //const bufferData = new Buffer.alloc(file.data.split(".")[1], "base64")
+            fs.writeFile(path, file.data.split(".")[1], "base64", () => {
                 console.log("file save" + path);
             })
         }

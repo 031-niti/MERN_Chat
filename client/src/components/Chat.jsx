@@ -3,6 +3,7 @@ import { UserContext } from '../context/UserContext'
 import axios from 'axios'
 import Logo from './Logo'
 import Contact from './Contact'
+import { uniqBy } from 'lodash'
 
 const Chat = () => {
   const [ws, setWs] = useState(null);
@@ -52,32 +53,35 @@ const Chat = () => {
     }
   }
 
-  const showOnlinePeople = (peopleAarray) => {
+  const showOnlinePeople = (peopleArray) => {
     const people = {};
-    peopleAarray.forEach(({ userId, username }) => {
-      people[userId] = username
-    })
+    peopleArray.forEach(({ userId, username }) => {
+      if (userId !== id) {
+        people[userId] = username;
+      }
+    });
     setOnlinePeople(people);
-  }
+  };
 
   //เมื่อ setOnlinePeople เปลี่ยน useEffect นี้จะทำงาน
   useEffect(() => {
-    axios.get("/people").then(res => {
+    axios.get("/people").then((res) => {
       const offlinePeopleArr = res.data
-        .filter(p => p._id != id)
-        .filter(p => !Object.keys(onlinePeople).includes(p._id));
+        .filter((p) => p._id !== id)
+        .filter((p) => !Object.keys(onlinePeople).includes(p._id));
       const offlinePeople = {};
       offlinePeopleArr.forEach((p) => {
         offlinePeople[p._id] = p;
       });
       setOfflinePeople(offlinePeople);
     });
-  }, [onlinePeople])
+  }, [onlinePeople,id]);
+  
   const onlinePeopleExclOurUser = { ...onlinePeople };
-  delete onlinePeopleExclOurUser[id]
+  delete onlinePeopleExclOurUser[id];
 
   const sendMessage = (e, file = null) => {
-    if (e) e.preventDefault();  
+    if (e) e.preventDefault();
     ws.send(JSON.stringify({
       recipient: selectedUserId,
       text: newMessageText,
@@ -100,13 +104,24 @@ const Chat = () => {
       ]);
     }
   };
-  useEffect(()=>{
+
+  useEffect(() => {
     if (selectedUserId) {
-      axios.get("/message/"+ selectedUserId).then((res) => {
+      axios.get("/message/" + selectedUserId).then((res) => {
         setMessage(res.data);
       });
     }
-  },[selectedUserId])
+  }, [selectedUserId]);
+
+  const messageWithoutDups = uniqBy(message, "_id")
+
+  const sendFile = (e) => {
+    const reader = new FileReader
+    reader.readAsArrayBuffer(e.target.files[0])
+    reader.onload = () => {
+      sendMessage(null, {name:e.target.files[0].name, data:reader.result})
+    }
+  }
   return (
     <div className='flex h-screen '>
       <div className='flex flex-col w-1/3'>
@@ -149,17 +164,42 @@ const Chat = () => {
       </div>
       <div className='bg-blue-100 flex flex-col w-2/3 p-2 '>
         <div className="flex-grow">
-          <div className='flex h-full flex-grow items-center justify-center'>
-            <div className='text-gray-600 '>
-              &larr; Select a person from sidebar
+          {!selectedUserId && (
+            <div className='flex h-full flex-grow items-center justify-center'>
+              <div className='text-gray-600 '>
+                &larr; Select a person from sidebar
+              </div>
             </div>
-          </div>
+          )}
+          {!!selectedUserId && (
+            <div className='relative h-full'>
+              <div className='overflow-y-scroll absolute top-0 left-0 right-0 bottom-2'>
+                {messageWithoutDups.map((message) => (
+                  <div key={message._id} className={(message.sender === id ? "text-right" : "text-left")}>
+                    <div className={'text-left inline-block p-2 my-2 rounded-md text-sm ' + 
+                    (message.sender === id ? 
+                    "bg-blue-500 text-white" : 
+                    "bg-white text-gray-500")}>
+                      {message.text}
+                      {message.file &&(
+                        <div className=''>
+                          <a target='_blank' href={axios.defaults.baseURL + "/uploads/"+message.file} className="flex items-center gap-1 border-b">
+                            {message.file}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <form className='px-8 flex items-center justify-center space-x-2' onSubmit={sendMessage}>
           <input type="text" placeholder="Type here massge" className="input input-bordered w-full "
             value={newMessageText} onChange={e => setNewMessageText(e.target.value)} />
-          <label htmlFor="" className='bg-blue-200 p-3 text-gray-600 cursor-pointer rounded-sm border-blue-200'>
-            <input type="file" className='hidden' />
+          <label className='bg-blue-200 p-3 text-gray-600 cursor-pointer rounded-sm border-blue-200' >
+            <input type="file" className='hidden' onChange={sendFile}/>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
             </svg>
