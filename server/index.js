@@ -7,7 +7,8 @@ const cookieParser = require('cookie-parser');
 const User = require('./models/User');
 const Message = require("./models/Message");
 const ws = require('ws')
-const fs = require('fs')
+const fs = require('fs');
+
 
 //.env
 require('dotenv').config()
@@ -104,6 +105,35 @@ app.get("/profile", (req, res) => {
     }
 })
 
+app.get("/people", async (req, res) => {
+    const user = await User.find({}, { _id: 1, username: 1 });
+    res.json(user);
+});
+
+const getUserDataFromRequest = (req) => {
+    return new Promise((resolve, reject) => {
+        const token = req.cookies?.token;
+        if (token) {
+            jwt.verify(token, secret, {}, (err, userData) => {
+                if (err) throw err;
+                resolve(userData);
+            })
+        } else {
+            reject('no token');
+        }
+    })
+}
+app.get("/message/:userId", async (req, res) => {
+    const { userId } = req.params;
+    const userData = await getUserDataFromRequest(req);
+    const ourUserId = userData.userId;
+    const message = await Message.find({
+        sender: { $in: [userId, ourUserId] },
+        recipient: { $in: [userId, ourUserId] },
+    }).sort({ createAt: 1 });
+    res.json(message);
+});
+
 //Run server
 const PORT = process.env.PORT;
 const server = app.listen(PORT, () => {
@@ -158,35 +188,33 @@ wss.on('connection', (connection, req) => {
             }
         }
     }
-
     connection.on("message", async (message) => {
-        const messageDate = JSON.parse(message.toString())
-        const { recipient, sender, file } = messageDate;
+        const messageData = JSON.parse(message.toString());
+        const { recipient, sender, text, file } = messageData;
         let filename = null;
         if (file) {
             const parts = file.name.split(".");
             const ext = parts[parts.length - 1];
             filename = Date.now() + "." + ext;
             const path = __dirname + "/uploads/" + filename;
-            const bufferData = new Buffer(file.data.split(".")[1], "base64")
-            fs.writeFile(path, bufferData, () => {
-                console.log("file save" + path);
-            })
+            fs.writeFile(path, file.data.split(",")[1], "base64", () => {
+              console.log("file saved" + path);
+            });
         }
         if (recipient && (text || file)) {
-            //save to database
+            // save to database
             const messageDoc = await Message.create({
                 sender: connection.userId,
                 recipient,
                 text,
-                file: file ? filename : null
+                file: file ? filename : null,
             });
             [...wss.clients].filter(c => c.userId === recipient).forEach(c => c.send(JSON.stringify({
                 sender: connection.userId,
                 recipient,
                 text,
                 file: file ? filename : null,
-                _id: messageDate._id
+                _id: messageDoc._id
             })))
         }
     })
